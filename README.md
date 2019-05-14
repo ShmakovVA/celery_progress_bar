@@ -37,11 +37,11 @@ from celery_progress_bar.core import TaskProgressSetter
 
 @task(bind=True)
 def my_task(self, user_id=None):
-    progress_recorder = TaskProgressSetter(self, user_id)
+    progress_recorder = TaskProgressSetter(task=self, user_id=user_id)
     <...>
-    progress_recorder.set_progress(10)
+    progress_recorder.set_progress(10, msg='Doing X ...')
     <...>
-    progress_recorder.set_progress(50)
+    progress_recorder.set_progress(50, msg='Doing Y ...')
     <...>
     return 'done'
 ```
@@ -61,7 +61,7 @@ def my_task(self, user_id=None):
 def progress_view(request):
     context = {}
     <...>
-    result = my_task.delay()
+    result = my_task.delay(user_id=request.user.pk)
     context.update({'task_id': result.task_id})
     <...>
     return render(request, 'display_progress.html', context=context)

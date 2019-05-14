@@ -66,7 +66,7 @@ class TaskProgress(object):
             return {
                 'complete': True,
                 'success': self.result.successful(),
-                'progress': SUCCESS_PROGRESS.update({USER_ID_KEY: self.user})
+                'progress': SUCCESS_PROGRESS,
             }
         elif self.result.state == PROGRESS_STATE:
             return {
@@ -78,6 +78,6 @@ class TaskProgress(object):
             return {
                 'complete': False,
                 'success': None,
-                'progress': UNKNOWN_PROGRESS.update({USER_ID_KEY: self.user}),
+                'progress': UNKNOWN_PROGRESS,
             }
         return self.info
