@@ -36,8 +36,8 @@ In the task:
 from celery_progress_bar.core import TaskProgressSetter
 
 @task(bind=True)
-def my_task(self):
-    progress_recorder = TaskProgressSetter(self)
+def my_task(self, user_id=None):
+    progress_recorder = TaskProgressSetter(self, user_id)
     <...>
     progress_recorder.set_progress(10)
     <...>
