@@ -4,8 +4,8 @@ extension for django/celery
 ## Installation
 
 ```bash
-pip install -e git+git@github.com:Sportamore/celery_progress_bar@0.1#egg=celery_progress_bar
-# until release use: pip install -e git+git@github.com:ShmakovVA/celery_progress_bar@0.1#egg=celery_progress_bar
+pip install -e git+git@github.com:Sportamore/celery_progress_bar@0.2#egg=celery_progress_bar
+# until release use: pip install -e git+git@github.com:ShmakovVA/celery_progress_bar@0.2#egg=celery_progress_bar
 ```
 
 ## Usage
