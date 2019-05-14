@@ -6,34 +6,36 @@ PROGRESS_STATE = 'IN_PROGRESS'  # our own
 UNKNOWN_STATES = ['PENDING', 'STARTED']
 
 USER_ID_KEY = 'user_id'
-PERCENT_ID_KEY = 'percent'
+PERCENT_KEY = 'percent'
+MESSAGE_KEY = 'msg'
 
 SUCCESS_PROGRESS = {'current': 100, 'total': 100,
-                    PERCENT_ID_KEY: 100, USER_ID_KEY: ''}
+                    PERCENT_KEY: 100, USER_ID_KEY: '', MESSAGE_KEY: 'finished'}
 UNKNOWN_PROGRESS = {'current': 0, 'total': 100,
-                    PERCENT_ID_KEY: 0, USER_ID_KEY: ''}
+                    PERCENT_KEY: 0, USER_ID_KEY: '', MESSAGE_KEY: 'unknown'}
 
 
 class TaskProgressSetter(object):
 
-    def __init__(self, task, user_id, total=100):
+    def __init__(self, task, user_id=None, total=100):
         self.task = task
-        self.set_progress(0, total)
         self.user_id = user_id if user_id else ''
+        self.set_progress(0, total)
 
     @staticmethod
     def _calc_percent(current, total):
         return round((Decimal(current) / Decimal(total)) * Decimal(100), 2)
 
-    def set_progress(self, current, total=100):
+    def set_progress(self, current, msg=None, total=100):
         percent = self._calc_percent(current, total) if total > 0 else 0
         self.task.update_state(
             state=PROGRESS_STATE,
             meta={
                 'current': current,
                 'total': total,
-                PERCENT_ID_KEY: percent,
+                PERCENT_KEY: percent,
                 USER_ID_KEY: self.user_id,
+                MESSAGE_KEY: msg if msg else '',
             }
         )
 
@@ -52,15 +54,19 @@ class TaskProgress(object):
         return self._get_info_attr(USER_ID_KEY)
 
     @property
+    def msg(self):
+        return self._get_info_attr(MESSAGE_KEY)
+
+    @property
     def in_percents(self):
-        return self._get_info_attr(PERCENT_ID_KEY)
+        return self._get_info_attr(PERCENT_KEY)
 
     def get_info(self):
         if self.result.ready():
             return {
                 'complete': True,
                 'success': self.result.successful(),
-                'progress': SUCCESS_PROGRESS
+                'progress': SUCCESS_PROGRESS.update({USER_ID_KEY: self.user})
             }
         elif self.result.state == PROGRESS_STATE:
             return {
@@ -72,6 +78,6 @@ class TaskProgress(object):
             return {
                 'complete': False,
                 'success': None,
-                'progress': UNKNOWN_PROGRESS,
+                'progress': UNKNOWN_PROGRESS.update({USER_ID_KEY: self.user}),
             }
         return self.info
