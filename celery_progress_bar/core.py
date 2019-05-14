@@ -13,7 +13,8 @@ READY_PROGRESS = {'current': 100, 'total': 100,
                   PERCENT_KEY: 100, USER_ID_KEY: '', MESSAGE_KEY: 'finished'}
 UNKNOWN_PROGRESS = {'current': 0, 'total': 100,
                     PERCENT_KEY: 0, USER_ID_KEY: '', MESSAGE_KEY: 'unknown'}
-
+ERROR_PROGRESS = {'current': 100, 'total': 100,
+                  PERCENT_KEY: 100, USER_ID_KEY: '', MESSAGE_KEY: 'failure'}
 
 class TaskProgressSetter(object):
 
@@ -74,23 +75,13 @@ class TaskProgress(object):
                 return {
                     'complete': True,
                     'success': None,
-                    'progress': READY_PROGRESS.update({
-                        MESSAGE_KEY: '%s - try again' % self.result.state
-                    }),
+                    'progress': ERROR_PROGRESS,
                 }
         elif self.result.state == PROGRESS_STATE:
             return {
                 'complete': False,
                 'success': None,
                 'progress': self.info,
-            }
-        elif self.result.state in UNKNOWN_STATES:
-            return {
-                'complete': False,
-                'success': None,
-                'progress': UNKNOWN_PROGRESS.update({
-                    MESSAGE_KEY: self.result.state
-                }),
             }
         else:
             return {
