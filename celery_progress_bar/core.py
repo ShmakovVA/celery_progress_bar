@@ -9,8 +9,8 @@ USER_ID_KEY = 'user_id'
 PERCENT_KEY = 'percent'
 MESSAGE_KEY = 'msg'
 
-SUCCESS_PROGRESS = {'current': 100, 'total': 100,
-                    PERCENT_KEY: 100, USER_ID_KEY: '', MESSAGE_KEY: 'finished'}
+READY_PROGRESS = {'current': 100, 'total': 100,
+                  PERCENT_KEY: 100, USER_ID_KEY: '', MESSAGE_KEY: 'finished'}
 UNKNOWN_PROGRESS = {'current': 0, 'total': 100,
                     PERCENT_KEY: 0, USER_ID_KEY: '', MESSAGE_KEY: 'unknown'}
 
@@ -62,12 +62,22 @@ class TaskProgress(object):
         return self._get_info_attr(PERCENT_KEY)
 
     def get_info(self):
-        if self.result.ready() and self.result.successful():
-            return {
-                'complete': True,
-                'success': True,
-                'progress': SUCCESS_PROGRESS,
-            }
+        if self.result.ready():
+            success = self.result.successful()
+            if success:
+                return {
+                    'complete': True,
+                    'success': True,
+                    'progress': READY_PROGRESS,
+                }
+            else:
+                return {
+                    'complete': True,
+                    'success': None,
+                    'progress': READY_PROGRESS.update({
+                        MESSAGE_KEY: '%s - try again' % self.result.state
+                    }),
+                }
         elif self.result.state == PROGRESS_STATE:
             return {
                 'complete': False,
@@ -78,7 +88,9 @@ class TaskProgress(object):
             return {
                 'complete': False,
                 'success': None,
-                'progress': UNKNOWN_PROGRESS,
+                'progress': UNKNOWN_PROGRESS.update({
+                    MESSAGE_KEY: self.result.state
+                }),
             }
         else:
             return {
