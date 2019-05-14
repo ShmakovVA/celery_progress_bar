@@ -37,7 +37,6 @@ class TaskProgress(object):
         self.result = AsyncResult(task_id)
 
     def get_info(self):
-        print(self.result.state)
         if self.result.ready():
             return {
                 'complete': True,
