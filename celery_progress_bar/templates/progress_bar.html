@@ -22,9 +22,9 @@
                 progressBarMessageElement.innerHTML = "Success!";
             }
 
-            function onErrorDefault(progressBarElement, progressBarMessageElement) {
+            function onErrorDefault(progressBarElement, progressBarMessageElement, progress) {
                 progressBarElement.style.backgroundColor = '#dc4f63';
-                progressBarMessageElement.innerHTML = "Something went wrong!";
+                progressBarMessageElement.innerHTML = "Something went wrong! ( " + progress.msg + ' ) ';
             }
 
             function onProgressDefault(progressBarElement, progressBarMessageElement, progress) {
@@ -55,7 +55,7 @@
                             if (data.success) {
                                 onSuccess(progressBarElement, progressBarMessageElement);
                             } else {
-                                onError(progressBarElement, progressBarMessageElement);
+                                onError(progressBarElement, progressBarMessageElement, data.progress);
                             }
                         }
                     });
