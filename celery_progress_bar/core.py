@@ -62,10 +62,10 @@ class TaskProgress(object):
         return self._get_info_attr(PERCENT_KEY)
 
     def get_info(self):
-        if self.result.ready():
+        if self.result.ready() and self.result.successful():
             return {
                 'complete': True,
-                'success': self.result.successful(),
+                'success': True,
                 'progress': SUCCESS_PROGRESS,
             }
         elif self.result.state == PROGRESS_STATE:
@@ -80,4 +80,9 @@ class TaskProgress(object):
                 'success': None,
                 'progress': UNKNOWN_PROGRESS,
             }
-        return self.info
+        else:
+            return {
+                'complete': False,
+                'success': None,
+                'progress': UNKNOWN_PROGRESS,
+            }
