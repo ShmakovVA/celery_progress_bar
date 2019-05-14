@@ -47,7 +47,6 @@
 
                 fetch(progressUrl).then(function (response) {
                     response.json().then(function (data) {
-                        console.log(data);
                         if (data.progress) {
                             onProgress(progressBarElement, progressBarMessageElement, data.progress);
                         }
