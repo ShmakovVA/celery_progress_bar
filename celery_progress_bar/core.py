@@ -73,23 +73,14 @@ class TaskProgressSetter(object):
 class TaskProgress(object):
 
     def __init__(self, task_id):
+        self.task_id = task_id
         self.result = AsyncResult(task_id)
         self.info = self.result.info
 
-    def _get_info_attr(self, attribute_name):
-        return getattr(self.info, attribute_name, None)
-
     @property
     def user(self):
-        return self._get_info_attr(USER_ID_KEY)
-
-    @property
-    def msg(self):
-        return self._get_info_attr(MESSAGE_KEY)
-
-    @property
-    def in_percents(self):
-        return self._get_info_attr(PERCENT_KEY)
+        if self.info:
+            return self.info.get(USER_ID_KEY, None)
 
     def get_info(self):
         if self.result.ready():
