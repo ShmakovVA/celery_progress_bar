@@ -17,7 +17,7 @@ MESSAGE_KEY = 'msg'
 READY_PROGRESS = {'current': 100, 'total': 100,
                   PERCENT_KEY: 100, USER_ID_KEY: '', MESSAGE_KEY: 'finished'}
 UNKNOWN_PROGRESS = {'current': 0, 'total': 100,
-                    PERCENT_KEY: 0, USER_ID_KEY: '', MESSAGE_KEY: 'unknown'}
+                    PERCENT_KEY: 0, USER_ID_KEY: '', MESSAGE_KEY: 'pending'}
 ERROR_PROGRESS = {'current': 100, 'total': 100,
                   PERCENT_KEY: 100, USER_ID_KEY: '', MESSAGE_KEY: 'failure'}
 
@@ -127,3 +127,38 @@ class TaskProgress(object):
             }
             unknown_result['progress'][USER_ID_KEY] = self.user
             return unknown_result
+
+
+class TaskProgressList(object):
+
+    def __init__(self, task_ids):
+        self.task_id_list = []
+        self.tasks = self.get_all_tasks()
+
+    @staticmethod
+    def get_all_tasks():
+        import celery
+        tasks = []
+        inspect = celery.current_app.control.inspect
+        active_tasks_of_workers = inspect().active().values()
+        if active_tasks_of_workers:
+            for worker_active_tasks in active_tasks_of_workers:
+                for task in worker_active_tasks:
+                    item = {
+                        'task_id': task['id'],
+                        'time_start': task['time_start'],
+                        'name': task['name']
+                    }
+                    tasks.append(item)
+        return tasks
+
+    def filter_tasks_by_user_id(self, user_id):
+        self.task_id_list = []
+        filtered_tasks = []
+        for task in self.tasks:
+            task_id = task['task_id']
+            task_user_id = TaskProgress(task_id).user
+            if task_user_id == user_id:
+                self.task_id_list.append(task_id)
+                filtered_tasks.append(task)
+        return filtered_tasks
