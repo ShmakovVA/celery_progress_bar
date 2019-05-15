@@ -1,7 +1,7 @@
 from decimal import Decimal
 
 from celery.result import AsyncResult
-from celery.signals import task_postrun
+from celery.signals import task_postrun, after_task_publish
 from celery.states import SUCCESS
 from django.core.cache import caches
 
@@ -38,6 +38,14 @@ def task_postrun(signal, sender, task_id, task, args, kwargs, retval, state):
         )
 
 
+@after_task_publish.connect
+def after_task_publish(signal, sender, body, exchange, routing_key):
+    user_id = body['kwargs'].get('user_id', None)
+    task_id = body['id']
+    if not CACHE.get(task_id, None):
+        CACHE.set(task_id, user_id)
+
+
 class TaskProgressSetter(object):
 
     def __init__(self, task, user_id=None, total=100):
@@ -51,7 +59,6 @@ class TaskProgressSetter(object):
         return round((Decimal(current) / Decimal(total)) * Decimal(100), 2)
 
     def _save_user_id(self):
-        print(self.task_id)
         if not CACHE.get(self.task_id, None):
             CACHE.set(self.task_id, self.user_id)
 
@@ -79,8 +86,11 @@ class TaskProgress(object):
 
     @property
     def user(self):
+        cache_ = CACHE.get(self.task_id, None)
         if self.info:
-            return self.info.get(USER_ID_KEY, None)
+            return self.info.get(USER_ID_KEY, None) or cache_
+        else:
+            return cache_
 
     def get_info(self):
         if self.result.ready():
@@ -110,8 +120,10 @@ class TaskProgress(object):
                 'progress': self.info,
             }
         else:
-            return {
+            unknown_result = {
                 'complete': False,
                 'success': None,
                 'progress': UNKNOWN_PROGRESS,
             }
+            unknown_result['progress'][USER_ID_KEY] = self.user
+            return unknown_result
