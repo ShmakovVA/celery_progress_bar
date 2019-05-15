@@ -2,10 +2,13 @@ from decimal import Decimal
 
 from celery.result import AsyncResult
 from celery.signals import task_postrun
+from celery.states import SUCCESS
+from django.core.cache import caches
+
+CACHE = caches['default']  # should be in settings.py
 
 PROGRESS_STATE = 'IN_PROGRESS'  # our own `in progress`
 SUCCESS_STATE = 'IN_SUCCESS'  # our own `success`
-UNKNOWN_STATES = ['PENDING', 'STARTED']
 
 USER_ID_KEY = 'user_id'
 PERCENT_KEY = 'percent'
@@ -21,29 +24,36 @@ ERROR_PROGRESS = {'current': 100, 'total': 100,
 
 @task_postrun.connect
 def task_postrun(signal, sender, task_id, task, args, kwargs, retval, state):
-    print('%s %s %s' % (state, task_id, signal))
-    task.update_state(
-        state='IN_SUCCESS',
-        meta={
-            'current': 100,
-            'total': 100,
-            'percent': 100,
-            'user_id': 1,
-            'msg': state,
-        }
-    )
+    if state == SUCCESS:
+        user_id = CACHE.get(task_id, '')
+        task.update_state(
+            state=SUCCESS_STATE,
+            meta={
+                'current': 100,
+                'total': 100,
+                PERCENT_KEY: 100,
+                USER_ID_KEY: user_id,
+                MESSAGE_KEY: state,
+            }
+        )
 
 
 class TaskProgressSetter(object):
 
     def __init__(self, task, user_id=None, total=100):
         self.task = task
+        self.task_id = self.task.request.id or None
         self.user_id = user_id if user_id else ''
         self.set_progress(0, total)
 
     @staticmethod
     def _calc_percent(current, total):
         return round((Decimal(current) / Decimal(total)) * Decimal(100), 2)
+
+    def _save_user_id(self):
+        print(self.task_id)
+        if not CACHE.get(self.task_id, None):
+            CACHE.set(self.task_id, self.user_id)
 
     def set_progress(self, current, msg=None, total=100):
         percent = self._calc_percent(current, total) if total > 0 else 0
@@ -57,6 +67,7 @@ class TaskProgressSetter(object):
                 MESSAGE_KEY: msg if msg else '',
             }
         )
+        self._save_user_id()
 
 
 class TaskProgress(object):
