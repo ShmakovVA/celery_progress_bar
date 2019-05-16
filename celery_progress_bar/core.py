@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 from decimal import Decimal
 
 from celery.result import AsyncResult
@@ -13,14 +14,39 @@ SUCCESS_STATE = 'IN_SUCCESS'  # our own `success`
 USER_ID_KEY = 'user_id'
 PERCENT_KEY = 'percent'
 MESSAGE_KEY = 'msg'
+CURRENT_KEY = 'current'
+TOTAL_KEY = 'total'
 
-READY_PROGRESS = {'current': 100, 'total': 100,
-                  PERCENT_KEY: 100, USER_ID_KEY: '', MESSAGE_KEY: 'finished'}
-UNKNOWN_PROGRESS = {'current': 0, 'total': 100,
+SUCCESS_PROGRESS = {CURRENT_KEY: 100, TOTAL_KEY: 100,
+                    PERCENT_KEY: 100, USER_ID_KEY: '', MESSAGE_KEY: 'success'}
+UNKNOWN_PROGRESS = {CURRENT_KEY: 0, TOTAL_KEY: 100,
                     PERCENT_KEY: 0, USER_ID_KEY: '', MESSAGE_KEY: 'pending'}
-ERROR_PROGRESS = {'current': 100, 'total': 100,
+ERROR_PROGRESS = {CURRENT_KEY: 100, TOTAL_KEY: 100,
                   PERCENT_KEY: 100, USER_ID_KEY: '', MESSAGE_KEY: 'failure'}
 
+
+def _make_meta(current, total, percent, user_id, message):
+    """
+    Meta data for tasks
+    :param current: current progress
+    :param total: total progress
+    :param percent: percentage of completion
+    :param user_id:  user_id
+    :param message: text message for showing up in progress bar
+    :return:
+    """
+    return {
+        CURRENT_KEY: current,
+        TOTAL_KEY: total,
+        PERCENT_KEY: percent,
+        USER_ID_KEY: user_id,
+        MESSAGE_KEY: message,
+    }
+
+
+##########################################################################
+# Celery-signals for updating meta on after publish and after processing #
+##########################################################################
 
 @task_postrun.connect
 def task_postrun(signal, sender, task_id, task, args, kwargs, retval, state):
@@ -28,13 +54,11 @@ def task_postrun(signal, sender, task_id, task, args, kwargs, retval, state):
         user_id = CACHE.get(task_id, '')
         task.update_state(
             state=SUCCESS_STATE,
-            meta={
-                'current': 100,
-                'total': 100,
-                PERCENT_KEY: 100,
-                USER_ID_KEY: user_id,
-                MESSAGE_KEY: state,
-            }
+            meta=_make_meta(current=100,
+                            total=100,
+                            percent=100,
+                            user_id=user_id,
+                            message=state)
         )
 
 
@@ -42,11 +66,16 @@ def task_postrun(signal, sender, task_id, task, args, kwargs, retval, state):
 def after_task_publish(signal, sender, body, exchange, routing_key):
     user_id = body['kwargs'].get('user_id', None)
     task_id = body['id']
-    if not CACHE.get(task_id, None):
+    if not CACHE.get(task_id, None) and user_id:
         CACHE.set(task_id, user_id)
 
 
+###################################################################
+# Classes for set/get/store meta data and status for Celery-tasks #
+###################################################################
+
 class TaskProgressSetter(object):
+    """ Allow setting the progress of a Celery-task """
 
     def __init__(self, task, user_id=None, total=100):
         self.task = task
@@ -66,18 +95,17 @@ class TaskProgressSetter(object):
         percent = self._calc_percent(current, total) if total > 0 else 0
         self.task.update_state(
             state=PROGRESS_STATE,
-            meta={
-                'current': current,
-                'total': total,
-                PERCENT_KEY: percent,
-                USER_ID_KEY: self.user_id,
-                MESSAGE_KEY: msg if msg else '',
-            }
+            meta=_make_meta(current=current,
+                            total=total,
+                            percent=percent,
+                            user_id=self.user_id,
+                            message=msg if msg else '')
         )
         self._save_user_id()
 
 
-class TaskProgress(object):
+class TaskProgressGetter(object):
+    """ Allow getting the progress of a Celery-task """
 
     def __init__(self, task_id):
         self.task_id = task_id
@@ -87,56 +115,69 @@ class TaskProgress(object):
     @property
     def user(self):
         cache_ = CACHE.get(self.task_id, None)
-        if self.info:
+        try:
             return self.info.get(USER_ID_KEY, None) or cache_
-        else:
+        except Exception as e:
             return cache_
 
+    def _success_result(self):
+        success_result = {
+            'complete': True,
+            'success': True,
+            'progress': SUCCESS_PROGRESS,
+        }
+        success_result['progress'][USER_ID_KEY] = self.user
+        return success_result
+
+    def _error_result(self):
+        error_result = {
+            'complete': True,
+            'success': None,
+            'progress': ERROR_PROGRESS,
+        }
+        error_result['progress'][USER_ID_KEY] = self.user
+        return error_result
+
+    def _unknown_result(self):
+        unknown_result = {
+            'complete': False,
+            'success': None,
+            'progress': UNKNOWN_PROGRESS,
+        }
+        unknown_result['progress'][USER_ID_KEY] = self.user
+        return unknown_result
+
+    def _progress_result(self):
+        return {
+            'complete': False,
+            'success': None,
+            'progress': self.info,
+        }
+
     def get_info(self):
+        _state = self.result.state
         if self.result.ready():
-            success = self.result.successful()
-            if success:
-                return {
-                    'complete': True,
-                    'success': True,
-                    'progress': READY_PROGRESS,
-                }
+            if self.result.successful():
+                return self._success_result()
             else:
-                return {
-                    'complete': True,
-                    'success': None,
-                    'progress': ERROR_PROGRESS,
-                }
-        elif self.result.state == PROGRESS_STATE:
-            return {
-                'complete': False,
-                'success': None,
-                'progress': self.info,
-            }
-        elif self.result.state == SUCCESS_STATE:
-            return {
-                'complete': True,
-                'success': True,
-                'progress': self.info,
-            }
+                return self._error_result()
+        elif _state == PROGRESS_STATE:
+            return self._progress_result()
+        elif _state == SUCCESS_STATE:
+            return self._success_result()
         else:
-            unknown_result = {
-                'complete': False,
-                'success': None,
-                'progress': UNKNOWN_PROGRESS,
-            }
-            unknown_result['progress'][USER_ID_KEY] = self.user
-            return unknown_result
+            return self._unknown_result()
 
 
-class TaskProgressList(object):
+class CeleryTaskList(object):
+    """ Helper for get list of task_id and filter them by user_id """
 
-    def __init__(self, task_ids):
+    def __init__(self):
         self.task_id_list = []
-        self.tasks = self.get_all_tasks()
+        self.active_tasks = self.get_active_tasks()
 
     @staticmethod
-    def get_all_tasks():
+    def get_active_tasks():
         import celery
         tasks = []
         inspect = celery.current_app.control.inspect
@@ -152,13 +193,13 @@ class TaskProgressList(object):
                     tasks.append(item)
         return tasks
 
-    def filter_tasks_by_user_id(self, user_id):
+    def active_tasks_by_user_id(self, user_id):
         self.task_id_list = []
-        filtered_tasks = []
-        for task in self.tasks:
+        user_tasks = []
+        for task in self.active_tasks:
             task_id = task['task_id']
-            task_user_id = TaskProgress(task_id).user
+            task_user_id = TaskProgressGetter(task_id).user
             if task_user_id == user_id:
                 self.task_id_list.append(task_id)
-                filtered_tasks.append(task)
-        return filtered_tasks
+                user_tasks.append(task)
+        return user_tasks

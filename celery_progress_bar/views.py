@@ -1,10 +1,9 @@
+# -*- coding: utf-8 -*-
 from django.http import JsonResponse
 
-from celery_progress_bar.core import TaskProgress
+from celery_progress_bar.core import TaskProgressGetter
 
 
 def get_task_progress(request, task_id):
-    progress = TaskProgress(task_id)
-    print progress.get_info()
-    print JsonResponse(progress.get_info())
+    progress = TaskProgressGetter(task_id)
     return JsonResponse(progress.get_info())

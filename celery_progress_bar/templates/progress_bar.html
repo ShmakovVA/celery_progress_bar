@@ -1,25 +1,26 @@
-{% if task_id %}
-
-    <!-- html-component for showing progress bar -->
-    <div>
-        <!-- progress -->
-        <div class='progress-wrapper'>
-            <div id='progress-bar' class='progress-bar'
-                 style="background-color: #68a9ef; width: 0%;">&nbsp;
+{% if task_id_list %}
+    {% for task_id in task_id_list %}
+        <!-- html-component for showing progress bar -->
+        <div>
+            <!-- progress -->
+            <div class='progress-wrapper'>
+                <div id='progress-bar-{{ task_id }}' class='progress-bar'
+                     style="background-color: #68a9ef; width: 0%;">&nbsp;
+                </div>
+            </div>
+            <!-- message -->
+            <div id="progress-bar-message-{{ task_id }}">
+                Waiting for progress to start...
             </div>
         </div>
-        <!-- message -->
-        <div id="progress-bar-message">
-            Waiting for progress to start...
-        </div>
-    </div>
+    {% endfor %}
 
     <!-- js-component for updating progress bar -->
     <script type="text/javascript">
-        let CeleryProgressBar = (function () {
-            function onSuccessDefault(progressBarElement, progressBarMessageElement) {
+        let CeleryMultiProgressBar = (function () {
+            function onSuccessDefault(progressBarElement, progressBarMessageElement, progress) {
                 progressBarElement.style.backgroundColor = '#76ce60';
-                progressBarMessageElement.innerHTML = "Success!";
+                progressBarMessageElement.innerHTML = "Success! ( " + progress.msg + " ) ";
             }
 
             function onErrorDefault(progressBarElement, progressBarMessageElement, progress) {
@@ -33,10 +34,10 @@
                 progressBarMessageElement.innerHTML = progress.current + ' / ' + progress.total + ' ( ' + progress.msg + ' ) ';
             }
 
-            function updateProgress(progressUrl, options) {
+            function updateProgress(progressUrl, task_id, options) {
                 options = options || {};
-                let progressBarId = options.progressBarId || 'progress-bar';
-                let progressBarMessage = options.progressBarMessageId || 'progress-bar-message';
+                let progressBarId = options.progressBarId || ('progress-bar-' + task_id);
+                let progressBarMessage = options.progressBarMessageId || ('progress-bar-message-' + task_id);
                 let progressBarElement = options.progressBarElement || document.getElementById(progressBarId);
                 let progressBarMessageElement = options.progressBarMessageElement || document.getElementById(progressBarMessage);
                 let onProgress = options.onProgress || onProgressDefault;
@@ -50,10 +51,10 @@
                             onProgress(progressBarElement, progressBarMessageElement, data.progress);
                         }
                         if (!data.complete) {
-                            setTimeout(updateProgress, pollInterval, progressUrl, options);
+                            setTimeout(updateProgress, pollInterval, progressUrl, task_id, options);
                         } else {
                             if (data.success) {
-                                onSuccess(progressBarElement, progressBarMessageElement);
+                                onSuccess(progressBarElement, progressBarMessageElement, data.progress);
                             } else {
                                 onError(progressBarElement, progressBarMessageElement, data.progress);
                             }
@@ -73,12 +74,14 @@
     </script>
 
     <!-- init component -->
-    <script type="text/javascript">
-        $(function () {
-            CeleryProgressBar.initProgressBar(
-                "{% url 'celery_progress_bar:task_status' task_id %}"
-            )
-        });
-    </script>
+    {% for task_id in task_id_list %}
+        <script type="text/javascript">
+            $(function () {
+                CeleryMultiProgressBar.initProgressBar(
+                    "{% url 'celery_progress_bar:task_status' task_id %}", "{{ task_id }}"
+                )
+            });
+        </script>
+    {% endfor %}
 
 {% endif %}

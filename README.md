@@ -4,8 +4,8 @@ extension for django/celery
 ## Installation
 
 ```bash
-pip install -e git+git@github.com:Sportamore/celery_progress_bar@0.2#egg=celery_progress_bar
-# until release use: pip install -e git+git@github.com:ShmakovVA/celery_progress_bar@0.2#egg=celery_progress_bar
+pip install -e git+git@github.com:Sportamore/celery_progress_bar@0.3#egg=celery_progress_bar
+# until release use: pip install -e git+git@github.com:ShmakovVA/celery_progress_bar@0.3#egg=celery_progress_bar
 ```
 
 ## Usage
@@ -37,11 +37,11 @@ from celery_progress_bar.core import TaskProgressSetter
 
 @task(bind=True)
 def my_task(self, user_id=None):
-    progress_recorder = TaskProgressSetter(task=self, user_id=user_id)
+    progress_setter = TaskProgressSetter(task=self, user_id=user_id)
     <...>
-    progress_recorder.set_progress(10, msg='Doing X ...')
+    progress_setter.set_progress(10, msg='Doing X ...')
     <...>
-    progress_recorder.set_progress(50, msg='Doing Y ...')
+    progress_setter.set_progress(50, msg='Doing Y ...')
     <...>
     return 'done'
 ```
@@ -55,14 +55,29 @@ def my_task(self, user_id=None):
 <...> 
 ```
 
-- In the view (Throw to the render context `task id`): 
+- In the view for `single progress bar` (Throw to the render context `task id`): 
 
 ```python
 def progress_view(request):
     context = {}
     <...>
     result = my_task.delay(user_id=request.user.pk)
-    context.update({'task_id': result.task_id})
+    context.update({'task_id_list': [result.task_id]})
     <...>
+    return render(request, 'display_progress.html', context=context)
+```
+
+or
+
+- In the view for `multiple progress bar` (Throw to the render context list of `task id`):  
+
+```python
+def progress_view(request):
+    context = {}
+    <...>
+    from celery_progress_bar.core import CeleryTaskList
+    task_list = CeleryTaskList()
+    task_list.active_tasks_by_user_id(request.user.pk)
+    context.update({'task_id_list': task_list.task_id_list})
     return render(request, 'display_progress.html', context=context)
 ```
