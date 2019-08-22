@@ -1,6 +1,9 @@
 # -*- coding: utf-8 -*-
+from datetime import datetime
 from decimal import Decimal
+from time import time
 
+import kombu.five
 from celery.result import AsyncResult
 from celery.signals import task_postrun, after_task_publish
 from celery.states import SUCCESS
@@ -80,7 +83,9 @@ def get_active_tasks():
             for task in worker_active_tasks:
                 item = {
                     'task_id': task['id'],
-                    'time_start': task['time_start'],
+                    'time_start': datetime.fromtimestamp(
+                        time() - (kombu.five.monotonic() - task['time_start'])
+                    ),
                     'name': task['name']
                 }
                 tasks.append(item)
