@@ -55,19 +55,10 @@ def _make_meta(current, total, percent, user_id, message):
 
 @task_postrun.connect
 def task_postrun(signal, sender, task_id, task, args, kwargs, retval, state):
-    user_id = CACHE.get(task_id, '')
     if state == SUCCESS:
+        user_id = CACHE.get(task_id, '')
         task.update_state(
             state=SUCCESS_STATE,
-            meta=_make_meta(current=100,
-                            total=100,
-                            percent=100,
-                            user_id=user_id,
-                            message=state)
-        )
-    else:
-        task.update_state(
-            state='PATCHED_%s' % state,
             meta=_make_meta(current=100,
                             total=100,
                             percent=100,
@@ -210,8 +201,11 @@ class TaskProgressGetter(object):
             'progress': self.info,
         }
         # task info to cache if not there yet
-        if not CACHE.get(TASK_INFO_KEY % self.task_id, None) and self.task_info:
+        if not self.cached_task_info and self.task_info:
             CACHE.set(TASK_INFO_KEY % self.task_id, self.task_info)
+        if not self.task_info:  # task slide out somehow and we were looped here
+            self.task_info = self.cached_task_info
+            return self._success_result()
         return self._add_task_info_to_response(progress_result)
 
     def get_info(self):
