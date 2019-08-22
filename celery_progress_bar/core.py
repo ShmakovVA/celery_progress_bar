@@ -85,7 +85,7 @@ def get_active_tasks():
                     'task_id': task['id'],
                     'time_start': datetime.fromtimestamp(
                         time() - (kombu.five.monotonic() - task['time_start'])
-                    ),
+                    ).replace(microsecond=0),
                     'name': task['name']
                 }
                 tasks.append(item)
