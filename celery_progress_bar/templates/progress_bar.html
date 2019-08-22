@@ -18,20 +18,29 @@
     <!-- js-component for updating progress bar -->
     <script type="text/javascript">
         let CeleryMultiProgressBar = (function () {
-            function onSuccessDefault(progressBarElement, progressBarMessageElement, progress) {
+            function onSuccessDefault(progressBarElement,
+                                      progressBarMessageElement,
+                                      progress, task_info)
+            {
                 progressBarElement.style.backgroundColor = '#76ce60';
-                progressBarMessageElement.innerHTML = "Success! ( " + progress.msg + " ) ";
+                progressBarMessageElement.innerHTML = "Done ( " + progress.msg + " ) [ " + task_info + " ]";
             }
 
-            function onErrorDefault(progressBarElement, progressBarMessageElement, progress) {
+            function onErrorDefault(progressBarElement,
+                                    progressBarMessageElement,
+                                    progress, task_info)
+            {
                 progressBarElement.style.backgroundColor = '#dc4f63';
-                progressBarMessageElement.innerHTML = "Something went wrong! ( " + progress.msg + ' ) ';
+                progressBarMessageElement.innerHTML = "Something went wrong! ( " + progress.msg + " ) [ " + task_info + " ]";
             }
 
-            function onProgressDefault(progressBarElement, progressBarMessageElement, progress) {
+            function onProgressDefault(progressBarElement,
+                                       progressBarMessageElement,
+                                       progress, task_info)
+            {
                 progressBarElement.style.backgroundColor = '#68a9ef';
                 progressBarElement.style.width = progress.percent + "%";
-                progressBarMessageElement.innerHTML = progress.current + ' / ' + progress.total + ' ( ' + progress.msg + ' ) ';
+                progressBarMessageElement.innerHTML = progress.current + " / " + progress.total + " ( " + progress.msg + " ) [ " + task_info + " ]";
             }
 
             function updateProgress(progressUrl, task_id, options) {
@@ -48,15 +57,22 @@
                 fetch(progressUrl).then(function (response) {
                     response.json().then(function (data) {
                         if (data.progress) {
-                            onProgress(progressBarElement, progressBarMessageElement, data.progress);
+                            onProgress(progressBarElement,
+                                progressBarMessageElement,
+                                data.progress, data.task_info);
                         }
                         if (!data.complete) {
-                            setTimeout(updateProgress, pollInterval, progressUrl, task_id, options);
+                            setTimeout(updateProgress, pollInterval,
+                                progressUrl, task_id, options);
                         } else {
                             if (data.success) {
-                                onSuccess(progressBarElement, progressBarMessageElement, data.progress);
+                                onSuccess(progressBarElement,
+                                    progressBarMessageElement,
+                                    data.progress, data.task_info);
                             } else {
-                                onError(progressBarElement, progressBarMessageElement, data.progress);
+                                onError(progressBarElement,
+                                    progressBarMessageElement,
+                                    data.progress, data.task_info);
                             }
                         }
                     });

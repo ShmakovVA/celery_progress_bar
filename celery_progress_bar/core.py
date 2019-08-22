@@ -70,6 +70,29 @@ def after_task_publish(signal, sender, body, exchange, routing_key):
         CACHE.set(task_id, user_id)
 
 
+def get_active_tasks():
+    import celery
+    tasks = []
+    inspect = celery.current_app.control.inspect
+    active_tasks_of_workers = inspect().active().values()
+    if active_tasks_of_workers:
+        for worker_active_tasks in active_tasks_of_workers:
+            for task in worker_active_tasks:
+                item = {
+                    'task_id': task['id'],
+                    'time_start': task['time_start'],
+                    'name': task['name']
+                }
+                tasks.append(item)
+    return tasks
+
+
+def get_task_info_by_task_id(task_id):
+    for task in get_active_tasks():
+        if task['task_id'] == task_id:
+            return '%s : %s' % (task['time_start'], task['name'])
+
+
 ###################################################################
 # Classes for set/get/store meta data and status for Celery-tasks #
 ###################################################################
@@ -107,8 +130,9 @@ class TaskProgressSetter(object):
 class TaskProgressGetter(object):
     """ Allow getting the progress of a Celery-task """
 
-    def __init__(self, task_id):
+    def __init__(self, task_id, task_info=None):
         self.task_id = task_id
+        self.task_info = task_info or self._get_task_info()
         self.result = AsyncResult(task_id)
         self.info = self.result.info
 
@@ -120,6 +144,14 @@ class TaskProgressGetter(object):
         except Exception as e:
             return cache_
 
+    def _get_task_info(self):
+        return get_task_info_by_task_id(self.task_id)
+
+    def _add_task_info_to_response(self, result_dict):
+        task_info = self.task_info or 'no info'
+        result_dict.update({'task_info': task_info})
+        return result_dict
+
     def _success_result(self):
         success_result = {
             'complete': True,
@@ -127,7 +159,7 @@ class TaskProgressGetter(object):
             'progress': SUCCESS_PROGRESS,
         }
         success_result['progress'][USER_ID_KEY] = self.user
-        return success_result
+        return self._add_task_info_to_response(success_result)
 
     def _error_result(self):
         error_result = {
@@ -136,7 +168,7 @@ class TaskProgressGetter(object):
             'progress': ERROR_PROGRESS,
         }
         error_result['progress'][USER_ID_KEY] = self.user
-        return error_result
+        return self._add_task_info_to_response(error_result)
 
     def _unknown_result(self):
         unknown_result = {
@@ -145,14 +177,15 @@ class TaskProgressGetter(object):
             'progress': UNKNOWN_PROGRESS,
         }
         unknown_result['progress'][USER_ID_KEY] = self.user
-        return unknown_result
+        return self._add_task_info_to_response(unknown_result)
 
     def _progress_result(self):
-        return {
+        progress_result = {
             'complete': False,
             'success': None,
             'progress': self.info,
         }
+        return self._add_task_info_to_response(progress_result)
 
     def get_info(self):
         _state = self.result.state
@@ -174,24 +207,7 @@ class CeleryTaskList(object):
 
     def __init__(self):
         self.task_id_list = []
-        self.active_tasks = self.get_active_tasks()
-
-    @staticmethod
-    def get_active_tasks():
-        import celery
-        tasks = []
-        inspect = celery.current_app.control.inspect
-        active_tasks_of_workers = inspect().active().values()
-        if active_tasks_of_workers:
-            for worker_active_tasks in active_tasks_of_workers:
-                for task in worker_active_tasks:
-                    item = {
-                        'task_id': task['id'],
-                        'time_start': task['time_start'],
-                        'name': task['name']
-                    }
-                    tasks.append(item)
-        return tasks
+        self.active_tasks = get_active_tasks()
 
     def active_tasks_by_user_id(self, user_id):
         self.task_id_list = []
