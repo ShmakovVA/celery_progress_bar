@@ -11,6 +11,8 @@ from django.core.cache import caches
 
 CACHE = caches['default']  # should be in settings.py
 
+TASK_INFO_KEY = '%s-task_inf'
+
 PROGRESS_STATE = 'IN_PROGRESS'  # our own `in progress`
 SUCCESS_STATE = 'IN_SUCCESS'  # our own `success`
 
@@ -53,10 +55,19 @@ def _make_meta(current, total, percent, user_id, message):
 
 @task_postrun.connect
 def task_postrun(signal, sender, task_id, task, args, kwargs, retval, state):
+    user_id = CACHE.get(task_id, '')
     if state == SUCCESS:
-        user_id = CACHE.get(task_id, '')
         task.update_state(
             state=SUCCESS_STATE,
+            meta=_make_meta(current=100,
+                            total=100,
+                            percent=100,
+                            user_id=user_id,
+                            message=state)
+        )
+    else:
+        task.update_state(
+            state='PATCHED_%s' % state,
             meta=_make_meta(current=100,
                             total=100,
                             percent=100,
@@ -69,6 +80,7 @@ def task_postrun(signal, sender, task_id, task, args, kwargs, retval, state):
 def after_task_publish(signal, sender, body, exchange, routing_key):
     user_id = body['kwargs'].get('user_id', None)
     task_id = body['id']
+    # user_id to cache
     if not CACHE.get(task_id, None) and user_id:
         CACHE.set(task_id, user_id)
 
@@ -149,11 +161,18 @@ class TaskProgressGetter(object):
         except Exception as e:
             return cache_
 
+    @property
+    def cached_task_info(self):
+        return CACHE.get(TASK_INFO_KEY % self.task_id, None)
+
     def _get_task_info(self):
         return get_task_info_by_task_id(self.task_id)
 
     def _add_task_info_to_response(self, result_dict):
-        task_info = self.task_info or 'no info'
+        if not self.task_info:
+            task_info = self.cached_task_info or 'no info'
+        else:
+            task_info = self.task_info
         result_dict.update({'task_info': task_info})
         return result_dict
 
@@ -190,6 +209,9 @@ class TaskProgressGetter(object):
             'success': None,
             'progress': self.info,
         }
+        # task info to cache if not there yet
+        if not CACHE.get(TASK_INFO_KEY % self.task_id, None) and self.task_info:
+            CACHE.set(TASK_INFO_KEY % self.task_id, self.task_info)
         return self._add_task_info_to_response(progress_result)
 
     def get_info(self):
