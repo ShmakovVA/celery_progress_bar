@@ -12,6 +12,7 @@ from django.core.cache import caches
 CACHE = caches['default']  # should be in settings.py
 
 TASK_INFO_KEY = '%s-task_inf'
+TASK_RESULT_KEY = '%s-task_res'
 
 PROGRESS_STATE = 'IN_PROGRESS'  # our own `in progress`
 SUCCESS_STATE = 'IN_SUCCESS'  # our own `success`
@@ -143,6 +144,7 @@ class TaskProgressGetter(object):
         self.task_info = task_info or self._get_task_info()
         self.result = AsyncResult(task_id)
         self.info = self.result.info
+        self.is_finished = False
 
     @property
     def user(self):
@@ -174,6 +176,7 @@ class TaskProgressGetter(object):
             'progress': SUCCESS_PROGRESS,
         }
         success_result['progress'][USER_ID_KEY] = self.user
+        self.is_finished = True
         return self._add_task_info_to_response(success_result)
 
     def _error_result(self):
@@ -183,6 +186,7 @@ class TaskProgressGetter(object):
             'progress': ERROR_PROGRESS,
         }
         error_result['progress'][USER_ID_KEY] = self.user
+        self.is_finished = True
         return self._add_task_info_to_response(error_result)
 
     def _unknown_result(self):
@@ -208,19 +212,25 @@ class TaskProgressGetter(object):
             return self._success_result()
         return self._add_task_info_to_response(progress_result)
 
+    def store_result_in_cache(self, _result):
+        CACHE.set(TASK_RESULT_KEY % self.task_id, _result, timeout=120)
+
     def get_info(self):
         _state = self.result.state
         if self.result.ready():
             if self.result.successful():
-                return self._success_result()
+                _result = self._success_result()
             else:
-                return self._error_result()
+                _result = self._error_result()
         elif _state == PROGRESS_STATE:
-            return self._progress_result()
+            _result = self._progress_result()
         elif _state == SUCCESS_STATE:
-            return self._success_result()
+            _result = self._success_result()
         else:
-            return self._unknown_result()
+            _result = self._unknown_result()
+        if self.is_finished:
+            self.store_result_in_cache(_result)
+        return _result
 
 
 class CeleryTaskList(object):
@@ -229,6 +239,14 @@ class CeleryTaskList(object):
     def __init__(self):
         self.task_id_list = []
         self.active_tasks = get_active_tasks()
+
+    def finished_task_result(self, user_id):
+        for task in self.active_tasks_by_user_id(user_id=user_id):
+            task_id = task['task_id']
+            result = CACHE.get(TASK_RESULT_KEY % task_id, None)
+            if result:
+                CACHE.delete(TASK_RESULT_KEY % task_id)
+                return result
 
     def active_tasks_by_user_id(self, user_id):
         self.task_id_list = []
