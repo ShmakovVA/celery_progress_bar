@@ -246,13 +246,12 @@ class CeleryTaskList(object):
         self.task_id_list = []
         self.active_tasks = get_active_tasks()
 
-    def finished_task_result(self, user_id):
-        for task in self.active_tasks_by_user_id(user_id=user_id):
-            task_id = task['task_id']
-            result = CACHE.get(TASK_RESULT_KEY % user_id, None)
-            if result:
-                CACHE.delete(TASK_RESULT_KEY % task_id)
-                return result
+    @staticmethod
+    def finished_task_result(user_id):
+        result = CACHE.get(TASK_RESULT_KEY % user_id, None)
+        if result:
+            CACHE.delete(TASK_RESULT_KEY % user_id)
+            return result
 
     def active_tasks_by_user_id(self, user_id):
         self.task_id_list = []
