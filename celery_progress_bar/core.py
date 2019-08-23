@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from datetime import datetime
 from decimal import Decimal
-from time import time
+from time import time, sleep
 
 import kombu.five
 from celery.result import AsyncResult
@@ -213,7 +213,13 @@ class TaskProgressGetter(object):
         return self._add_task_info_to_response(progress_result)
 
     def store_result_in_cache(self, _result):
-        CACHE.set(TASK_RESULT_KEY % self.task_id, _result, timeout=120)
+        cache_value = CACHE.get(TASK_RESULT_KEY % self.user, None)
+        if cache_value:
+            if _result not in cache_value:
+                cache_value = cache_value.append(_result)
+                CACHE.set(TASK_RESULT_KEY % self.user, cache_value, timeout=120)
+        else:
+            CACHE.set(TASK_RESULT_KEY % self.user, [_result,], timeout=120)
 
     def get_info(self):
         _state = self.result.state
@@ -243,7 +249,7 @@ class CeleryTaskList(object):
     def finished_task_result(self, user_id):
         for task in self.active_tasks_by_user_id(user_id=user_id):
             task_id = task['task_id']
-            result = CACHE.get(TASK_RESULT_KEY % task_id, None)
+            result = CACHE.get(TASK_RESULT_KEY % user_id, None)
             if result:
                 CACHE.delete(TASK_RESULT_KEY % task_id)
                 return result
