@@ -221,9 +221,9 @@ class TaskProgressGetter(object):
         if cache_value:
             if _result not in cache_value:
                 cache_value = cache_value.append(_result)
-                CACHE.set(TASK_RESULT_KEY % self.user, cache_value, timeout=120)
+                CACHE.set(TASK_RESULT_KEY % self.user, cache_value)
         else:
-            CACHE.set(TASK_RESULT_KEY % self.user, [_result, ], timeout=120)
+            CACHE.set(TASK_RESULT_KEY % self.user, [_result, ])
 
     def get_info(self):
         _state = self.result.state
