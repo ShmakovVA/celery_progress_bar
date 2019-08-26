@@ -1,103 +1,105 @@
 {% if task_id_list %}
-    {% for task_id in task_id_list %}
-        <!-- html-component for showing progress bar -->
-        <div>
-            <!-- progress -->
-            <div class='progress-wrapper'>
-                <div id='progress-bar-{{ task_id }}' class='progress-bar'
-                     style="background-color: #68a9ef; width: 0%;">&nbsp;
-                </div>
-            </div>
-            <!-- message -->
-            <div id="progress-bar-message-{{ task_id }}">
-                Waiting for progress to start...
-            </div>
+{% for task_id in task_id_list %}
+<!-- html-component for showing progress bar -->
+<div>
+    <!-- progress -->
+    <div class='progress-wrapper'>
+        <div id='progress-bar-{{ task_id }}' class='progress-bar'
+             style="background-color: #68a9ef; width: 0%;">&nbsp;
         </div>
-    {% endfor %}
+    </div>
+    <!-- message -->
+    <div id="progress-bar-message-{{ task_id }}">
+        Waiting for progress to start...
+    </div>
+</div>
+{% endfor %}
 
-    <!-- js-component for updating progress bar -->
-    <script type="text/javascript">
-        let CeleryMultiProgressBar = (function () {
-            function onSuccessDefault(progressBarElement,
-                                      progressBarMessageElement,
-                                      progress, task_info)
-            {
-                progressBarElement.style.backgroundColor = '#76ce60';
-                progressBarMessageElement.innerHTML = "Done ( " + progress.msg + " ) [ " + task_info + " ]";
-            }
+<!-- js-component for updating progress bar -->
+<script type="text/javascript">
+    let CeleryMultiProgressBar = (function () {
+        function onSuccessDefault(progressBarElement,
+                                  progressBarMessageElement,
+                                  progress, task_info) {
+            progressBarElement.style.backgroundColor = '#76ce60';
+            progressBarMessageElement.innerHTML = "Done ( " + progress.msg + " ) [ " + task_info + " ]";
+        }
 
-            function onErrorDefault(progressBarElement,
-                                    progressBarMessageElement,
-                                    progress, task_info)
-            {
-                progressBarElement.style.backgroundColor = '#dc4f63';
-                progressBarMessageElement.innerHTML = "Something went wrong! ( " + progress.msg + " ) [ " + task_info + " ]";
-            }
+        function onErrorDefault(progressBarElement,
+                                progressBarMessageElement,
+                                progress, task_info) {
+            progressBarElement.style.backgroundColor = '#dc4f63';
+            progressBarMessageElement.innerHTML = "Something went wrong! ( " + progress.msg + " ) [ " + task_info + " ]";
+        }
 
-            function onProgressDefault(progressBarElement,
-                                       progressBarMessageElement,
-                                       progress, task_info)
-            {
-                progressBarElement.style.backgroundColor = '#68a9ef';
-                progressBarElement.style.width = progress.percent + "%";
-                progressBarMessageElement.innerHTML = progress.current + " / " + progress.total + " ( " + progress.msg + " ) [ " + task_info + " ]";
-            }
+        function onProgressDefault(progressBarElement,
+                                   progressBarMessageElement,
+                                   progress, task_info) {
+            progressBarElement.style.backgroundColor = '#68a9ef';
+            progressBarElement.style.width = progress.percent + "%";
+            progressBarMessageElement.innerHTML = progress.current + " / " + progress.total + " ( " + progress.msg + " ) [ " + task_info + " ]";
+        }
 
-            function updateProgress(progressUrl, task_id, options) {
-                options = options || {};
-                let progressBarId = options.progressBarId || ('progress-bar-' + task_id);
-                let progressBarMessage = options.progressBarMessageId || ('progress-bar-message-' + task_id);
-                let progressBarElement = options.progressBarElement || document.getElementById(progressBarId);
-                let progressBarMessageElement = options.progressBarMessageElement || document.getElementById(progressBarMessage);
-                let onProgress = options.onProgress || onProgressDefault;
-                let onSuccess = options.onSuccess || onSuccessDefault;
-                let onError = options.onError || onErrorDefault;
-                let pollInterval = options.pollInterval || 500;
+        function updateProgress(progressUrl, task_id, options) {
+            options = options || {};
+            let progressBarId = options.progressBarId || ('progress-bar-' + task_id);
+            let progressBarMessage = options.progressBarMessageId || ('progress-bar-message-' + task_id);
+            let progressBarElement = options.progressBarElement || document.getElementById(progressBarId);
+            let progressBarMessageElement = options.progressBarMessageElement || document.getElementById(progressBarMessage);
+            let onProgress = options.onProgress || onProgressDefault;
+            let onSuccess = options.onSuccess || onSuccessDefault;
+            let onError = options.onError || onErrorDefault;
+            let pollInterval = options.pollInterval || 500;
 
-                fetch(progressUrl).then(function (response) {
-                    response.json().then(function (data) {
-                        if (data.progress) {
-                            onProgress(progressBarElement,
+            fetch(progressUrl).then(function (response) {
+                response.json().then(function (data) {
+                    if (data.progress) {
+                        onProgress(progressBarElement,
+                            progressBarMessageElement,
+                            data.progress, data.task_info);
+                    }
+                    if (!data.complete) {
+                        setTimeout(updateProgress, pollInterval,
+                            progressUrl, task_id, options);
+                    } else {
+                        if (data.success) {
+                            onSuccess(progressBarElement,
+                                progressBarMessageElement,
+                                data.progress, data.task_info);
+                        } else {
+                            onError(progressBarElement,
                                 progressBarMessageElement,
                                 data.progress, data.task_info);
                         }
-                        if (!data.complete) {
-                            setTimeout(updateProgress, pollInterval,
-                                progressUrl, task_id, options);
-                        } else {
-                            if (data.success) {
-                                onSuccess(progressBarElement,
-                                    progressBarMessageElement,
-                                    data.progress, data.task_info);
-                            } else {
-                                onError(progressBarElement,
-                                    progressBarMessageElement,
-                                    data.progress, data.task_info);
-                            }
-                        }
-                    });
+                    }
                 });
-            }
-
-            return {
-                onSuccessDefault: onSuccessDefault,
-                onErrorDefault: onErrorDefault,
-                onProgressDefault: onProgressDefault,
-                updateProgress: updateProgress,
-                initProgressBar: updateProgress,  // just for api cleanliness
-            };
-        })();
-    </script>
-
-    <!-- init component -->
-    {% for task_id in task_id_list %}
-        <script type="text/javascript">
-            $(function () {
-                CeleryMultiProgressBar.initProgressBar(
-                    "{% url 'celery_progress_bar:task_status' task_id %}", "{{ task_id }}"
-                )
             });
-        </script>
-    {% endfor %}
+        }
+
+        return {
+            onSuccessDefault: onSuccessDefault,
+            onErrorDefault: onErrorDefault,
+            onProgressDefault: onProgressDefault,
+            updateProgress: updateProgress,
+            initProgressBar: updateProgress,  // just for api cleanliness
+        };
+    })();
+</script>
+
+<!-- init component -->
+{% for task_id in task_id_list %}
+<script type="text/javascript">
+    if (typeof j == "undefined") {
+        let $j = jQuery.noConflict();
+    }
+
+    $j(function () {
+        CeleryMultiProgressBar.initProgressBar(
+            "{% url 'celery_progress_bar:task_status' task_id %}",
+            "{{ task_id }}"
+        )
+    });
+</script>
+{% endfor %}
 
 {% endif %}
