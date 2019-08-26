@@ -49,7 +49,7 @@
             let onProgress = options.onProgress || onProgressDefault;
             let onSuccess = options.onSuccess || onSuccessDefault;
             let onError = options.onError || onErrorDefault;
-            let pollInterval = options.pollInterval || 500;
+            let pollInterval = options.pollInterval || 1000;
 
             fetch(progressUrl).then(function (response) {
                 response.json().then(function (data) {
