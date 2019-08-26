@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 from datetime import datetime
 from decimal import Decimal
-from time import time, sleep
+from time import time
 
-import kombu.five
+import kombu.five  # for trick with celery `time_start`
 from celery.result import AsyncResult
 from celery.signals import task_postrun, after_task_publish
 from celery.states import SUCCESS
@@ -76,6 +76,10 @@ def after_task_publish(signal, sender, body, exchange, routing_key):
     if not CACHE.get(task_id, None) and user_id:
         CACHE.set(task_id, user_id)
 
+
+##########################################################################
+#          Celery-helpers for getting info about tickets                 #
+##########################################################################
 
 def get_active_tasks():
     import celery
@@ -219,7 +223,7 @@ class TaskProgressGetter(object):
                 cache_value = cache_value.append(_result)
                 CACHE.set(TASK_RESULT_KEY % self.user, cache_value, timeout=120)
         else:
-            CACHE.set(TASK_RESULT_KEY % self.user, [_result,], timeout=120)
+            CACHE.set(TASK_RESULT_KEY % self.user, [_result, ], timeout=120)
 
     def get_info(self):
         _state = self.result.state
